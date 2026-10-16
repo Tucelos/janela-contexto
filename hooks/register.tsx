@@ -19,6 +19,12 @@ const CARD_CELLS = 32
 const FULL = '█'
 const BUFFER = '▒'
 const FREE = '░'
+/**
+ * The card's unused space: thin lines, centred on the row. The shade glyphs fill the whole
+ * cell and, from a fallback font, run wider and taller than it, into the row above.
+ */
+const THIN_BUFFER = '╌'
+const THIN_FREE = '─'
 const SQUARE = '■'
 const DOT = '·'
 const DASH = '—'
@@ -407,13 +413,17 @@ export const register: Register = on => {
           </Text>
           <Text dimColor>{usageText(meter)}</Text>
         </Box>
-        <Text mono>
-          {meter.filled.map(segment => (
-            <Text color={segment.color}>{FULL.repeat(segment.cells)}</Text>
-          ))}
-          {meter.bufferCells > 0 && <Text dimColor>{BUFFER.repeat(meter.bufferCells)}</Text>}
-          {meter.freeCells > 0 && <Text dimColor>{FREE.repeat(meter.freeCells)}</Text>}
-        </Text>
+        <Box marginTop="xs">
+          <Text mono>
+            {meter.filled.map(segment => (
+              <Text color={segment.color}>{FULL.repeat(segment.cells)}</Text>
+            ))}
+            {meter.bufferCells > 0 && (
+              <Text dimColor>{THIN_BUFFER.repeat(meter.bufferCells)}</Text>
+            )}
+            {meter.freeCells > 0 && <Text dimColor>{THIN_FREE.repeat(meter.freeCells)}</Text>}
+          </Text>
+        </Box>
         <Text dimColor>{compactLine(meter)}</Text>
         {meter.isEstimate && (
           <Text dimColor italic>

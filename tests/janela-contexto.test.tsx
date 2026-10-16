@@ -111,6 +111,9 @@ describe('janela-contexto', () => {
     expect(await card.find({ type: 'Text', text: 'Mensagens 87k' })).toBeDefined()
     expect(await card.find({ type: 'Text', text: 'Ferramentas MCP' })).toBeUndefined()
     expect(await card.find({ type: 'Button', key: 'compactar' })).toBeDefined()
+    // Used space in blocks, the reserve and the free space in thin lines: no shade glyphs.
+    expect(await card.find({ type: 'Text', text: /^█{17}╌{7}─{8}$/ })).toBeDefined()
+    expect(await card.find({ type: 'Text', text: /[░▒]/ })).toBeUndefined()
 
     await card.press({ key: 'fechar' })
     expect(await card.find({ type: 'Text', text: 'engine:band' })).toBeDefined()
