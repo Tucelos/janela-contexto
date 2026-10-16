@@ -1,0 +1,12 @@
+{
+  "name": "tuigg-mods",
+  "description": "Mods para o Claude Code",
+  "owner": { "name": "Tuigg Barcelos" },
+  "plugins": [
+    {
+      "name": "janela-contexto",
+      "source": "./",
+      "description": "Mostra o uso da janela de contexto no rodapé da caixa de texto, com detalhes e um botão para compactar"
+    }
+  ]
+}
