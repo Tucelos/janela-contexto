@@ -33,6 +33,7 @@ function breakdown(): SessionContextBreakdown {
       { name: 'System tools', tokens: 14_000, color: 'promptBorder', isDeferred: false, kind: 'used' },
       { name: 'Messages', tokens: 87_000, color: 'permission', isDeferred: false, kind: 'used' },
       { name: 'MCP tools', tokens: 9_000, color: 'ide', isDeferred: true, kind: 'deferred' },
+      { name: 'MCP server instructions', tokens: 1_400, color: 'success', isDeferred: false, kind: 'used' },
       { name: 'Free space', tokens: 51_000, color: 'inactive', isDeferred: false, kind: 'free' },
       { name: 'Autocompact buffer', tokens: 45_000, color: 'inactive', isDeferred: false, kind: 'buffer' },
     ],
@@ -109,6 +110,7 @@ describe('janela-contexto', () => {
     expect(await card.find({ type: 'Text', text: '104k de 200k tokens' })).toBeDefined()
     expect(await card.find({ type: 'Text', text: 'Compactação automática em 155k · faltam 51k' })).toBeDefined()
     expect(await card.find({ type: 'Text', text: 'Mensagens 87k' })).toBeDefined()
+    expect(await card.find({ type: 'Text', text: 'Instruções dos servidores MCP 1,4k' })).toBeDefined()
     expect(await card.find({ type: 'Text', text: 'Ferramentas MCP' })).toBeUndefined()
     expect(await card.find({ type: 'Button', key: 'compactar' })).toBeDefined()
     // Used space in blocks, the reserve and the free space in thin lines: no shade glyphs.
@@ -121,15 +123,21 @@ describe('janela-contexto', () => {
     await chip.unmount()
   })
 
-  test('o botão Compactar compacta a conversa e mostra o resultado', async ($, on) => {
+  test('o botão Compactar roda o /compact, como no app desktop', async ($, on) => {
     let context = LIVE
     world(on, () => context)
     engineDraws(on)
-    let calls = 0
+    // The desktop app's engine: no direct compaction from a mod, only the command.
+    let directCalls = 0
     on('session.compact', () => {
-      calls += 1
+      directCalls += 1
+      throw new Error('not available in a headless (-p / SDK) session yet')
+    })
+    const runs: string[] = []
+    on('command.run', { command: 'compact' }, ($, e) => {
+      runs.push(`/${e.command} ${e.args}`.trim())
       context = FRESH
-      return { messages: [{ role: 'user', text: 'Resumo da conversa', toolUses: [] }], tokensBefore: 104_000, tokensAfter: 12_000 }
+      return {}
     })
     await $.session.measure({ context: LIVE, rateLimits: [], changed: ['context'] })
 
@@ -138,17 +146,22 @@ describe('janela-contexto', () => {
     await chip.press({ key: 'contexto' })
     await card.press({ key: 'compactar' })
 
-    expect(calls).toBe(1)
-    expect(await card.find({ type: 'Text', text: 'Conversa compactada: 104k → 12k tokens.' })).toBeDefined()
+    expect(runs).toEqual(['/compact'])
+    expect(directCalls).toBe(0)
+    expect(await card.find({ type: 'Text', text: 'Conversa compactada.' })).toBeDefined()
     expect((await chip.find({ type: 'Button', key: 'contexto' }))?.props.label).toMatch(/~52%$/)
     await card.unmount()
     await chip.unmount()
   })
 
   test('reabrir o cartão não mostra o resultado da compactação anterior', async ($, on) => {
-    world(on, () => LIVE)
+    let context = LIVE
+    world(on, () => context)
     engineDraws(on)
-    on('session.compact', () => ({ messages: [{ role: 'user', text: 'Resumo da conversa', toolUses: [] }], tokensBefore: 104_000, tokensAfter: 12_000 }))
+    on('command.run', { command: 'compact' }, () => {
+      context = FRESH
+      return {}
+    })
     await $.session.measure({ context: LIVE, rateLimits: [], changed: ['context'] })
 
     const chip = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...CHIP })
@@ -162,17 +175,46 @@ describe('janela-contexto', () => {
     await chip.unmount()
   })
 
-  test('uma compactação recusada diz o motivo', async ($, on) => {
+  test('quando o /compact não muda a conversa, o cartão diz o motivo', async ($, on) => {
     world(on, () => LIVE)
     engineDraws(on)
-    on('session.compact', () => ({ skip: 'um hook vetou' }))
+    let answer: { text?: string } = { text: 'Not enough messages to compact.' }
+    on('command.run', { command: 'compact' }, () => answer)
     await $.session.measure({ context: LIVE, rateLimits: [], changed: ['context'] })
 
     const chip = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...CHIP })
     const card = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...band() })
     await chip.press({ key: 'contexto' })
     await card.press({ key: 'compactar' })
-    expect(await card.find({ type: 'Text', text: 'A compactação não aconteceu: um hook vetou' })).toBeDefined()
+    expect(
+      await card.find({ type: 'Text', text: 'A compactação não aconteceu: Not enough messages to compact.' }),
+    ).toBeDefined()
+
+    answer = {}
+    await card.press({ key: 'compactar' })
+    expect(
+      await card.find({
+        type: 'Text',
+        text: 'A compactação não aconteceu: o /compact terminou sem mudar a conversa',
+      }),
+    ).toBeDefined()
+    expect(await card.find({ type: 'Text', text: 'Conversa compactada' })).toBeUndefined()
+    await card.unmount()
+    await chip.unmount()
+  })
+
+  test('um erro ao rodar o /compact aparece no cartão', async ($, on) => {
+    // No command.run hook: the call on $ is refused, as an unknown command would be.
+    world(on, () => LIVE)
+    engineDraws(on)
+    await $.session.measure({ context: LIVE, rateLimits: [], changed: ['context'] })
+
+    const chip = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...CHIP })
+    const card = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', ...band() })
+    await chip.press({ key: 'contexto' })
+    await card.press({ key: 'compactar' })
+    expect(await card.find({ type: 'Text', text: /^Não deu para compactar: .+/ })).toBeDefined()
+    expect(await card.find({ type: 'Button', key: 'compactar' })).toBeDefined()
     await card.unmount()
     await chip.unmount()
   })

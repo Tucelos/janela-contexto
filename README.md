@@ -7,7 +7,7 @@ Um mod para o Claude Code que mostra quanto da janela de contexto a conversa já
 
 A barra é colorida por categoria, nas mesmas cores do `/context`. A porcentagem fica verde, amarela ou vermelha conforme o contexto se aproxima da compactação automática. Antes da primeira resposta de uma sessão, o mod mostra uma estimativa marcada com `~`.
 
-O botão **Compactar agora** faz o mesmo que o `/compact` e só aparece entre turnos.
+O botão **Compactar agora** roda o `/compact` como se você tivesse digitado o comando, e só aparece entre turnos.
 
 Requer o Claude Code 2.1.299 ou mais novo. O app desktop já traz essa versão. No terminal, atualize com `claude update`.
 

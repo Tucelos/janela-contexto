@@ -28,10 +28,11 @@ const THIN_FREE = '─'
 const SQUARE = '■'
 const DOT = '·'
 const DASH = '—'
-const ARROW = '→'
 
 const IDLE: Compaction = { status: 'idle', text: null }
 const RUNNING: Compaction = { status: 'running', text: null }
+const DONE: Compaction = { status: 'done', text: null }
+const NOTHING_COMPACTED = 'o /compact terminou sem mudar a conversa'
 
 const snapshot = atom({ plugin: 'janela-contexto', key: 'snapshot' } as const, null)
 const isOpen = atom({ plugin: 'janela-contexto', key: 'isOpen' } as const, false)
@@ -48,6 +49,7 @@ const LABELS: Readonly<Record<string, string>> = {
   Messages: 'Mensagens',
   'Free space': 'Livre',
   'Autocompact buffer': 'Reserva de compactação',
+  'MCP server instructions': 'Instruções dos servidores MCP',
 }
 
 type Level = 'success' | 'warning' | 'error'
@@ -267,7 +269,13 @@ async function closeDetails($: EngineInterface): Promise<void> {
   await update($, isOpen, () => false)
 }
 
-/** The card's button: the same compaction /compact runs, between turns only. */
+/**
+ * The card's button: runs /compact as if the person typed it, between turns only.
+ *
+ * The desktop app's sessions take no direct compaction from a mod (`$.session.compact` rejects
+ * there), only the command. The command reports nothing about the outcome, so the window does:
+ * right after a compaction it has no reading until the next response.
+ */
 async function compactNow($: EngineInterface): Promise<void> {
   const current = await read($, compaction)
   if (current.status === 'running') return
@@ -275,19 +283,11 @@ async function compactNow($: EngineInterface): Promise<void> {
 
   let outcome: Compaction
   try {
-    const result = await $.session.compact()
-    const skip = 'skip' in result ? result.skip : undefined
-    if (typeof skip === 'string') {
-      outcome = { status: 'skipped', text: skip }
-    } else {
-      const before = 'tokensBefore' in result ? result.tokensBefore : undefined
-      const after = 'tokensAfter' in result ? result.tokensAfter : undefined
-      const sizes =
-        before !== undefined && after !== undefined
-          ? `${formatTokens(before)} ${ARROW} ${formatTokens(after)} tokens`
-          : null
-      outcome = { status: 'done', text: sizes }
-    }
+    const before = (await $.session.usage()).context.tokens
+    const { text } = await $.command.run({ command: 'compact' })
+    const after = (await $.session.usage()).context.tokens
+    const isCompacted = after === undefined || (before !== undefined && after < before)
+    outcome = isCompacted ? DONE : { status: 'skipped', text: text?.trim() || NOTHING_COMPACTED }
   } catch (error) {
     outcome = { status: 'failed', text: error instanceof Error ? error.message : String(error) }
   }
@@ -441,11 +441,7 @@ export const register: Register = on => {
           </Box>
         )}
         {state.status === 'running' && <Text>Compactando a conversa…</Text>}
-        {state.status === 'done' && (
-          <Text color="success">
-            {state.text === null ? 'Conversa compactada.' : `Conversa compactada: ${state.text}.`}
-          </Text>
-        )}
+        {state.status === 'done' && <Text color="success">Conversa compactada.</Text>}
         {state.status === 'skipped' && (
           <Text color="warning">{`A compactação não aconteceu: ${state.text ?? ''}`}</Text>
         )}

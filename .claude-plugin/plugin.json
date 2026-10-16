@@ -1,6 +1,6 @@
 {
   "name": "janela-contexto",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Mostra o uso da janela de contexto no rodapé da caixa de texto, com detalhes e um botão para compactar",
   "author": { "name": "Tuigg Barcelos" },
   "types": "./types/index.d.ts"

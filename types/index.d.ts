@@ -33,7 +33,7 @@ export type CompactionStatus = 'idle' | 'running' | 'done' | 'skipped' | 'failed
 /** The last compaction the card started, and what it said. */
 export type Compaction = {
   status: CompactionStatus
-  /** The sizes before and after, the veto, or the error; null when there is nothing to say. */
+  /** Why /compact left the conversation as it was, or the error; null when there is nothing to say. */
   text: string | null
 }
 
